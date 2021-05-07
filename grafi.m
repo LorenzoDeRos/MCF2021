@@ -70,29 +70,29 @@ inserisci4[vertice_, ext_, grafo_]:=If[
 
 ____________________________GENERAEQUAZIONI_________________________________________
 
-listacaratteristiche[grafo_, caratt_]:=Map[(Apply[caratt,#])&, grafo];
+listacaratteristiche[grafo_, F_]:=Map[(Apply[F,#])&, grafo];
 
-generaequazioni[grafo_]:=Module[{temp},
+generaequazioni[grafo_, F_]:=Module[{temp, caratteristiche},
 	indici=Flatten[grafo];
 	npt=Max[indici];
 	nvert=Min[indici];
-	impulsi=listacaratteristiche[grafo, p];
+	caratteristiche=listacaratteristiche[grafo, F];
 	equazioni=Table[
 		(*di default il pattern viene cercato da Cases al I livello*)
-		impulsivertice=Join[Cases[impulsi,p[_,i]],-Cases[impulsi,p[i,_]]];
-		eq = Apply[Plus,impulsivertice]==0;
+		carattvertice=Join[Cases[caratteristiche,F[_,i]],-Cases[caratteristiche,F[i,_]]];
+		eq = Apply[Plus,carattvertice]==0;
 		eq,
 		{i,-1,nvert,-1}
 	];
-	equazioni=equazioni /. {p[i_ /; i>0, j_] :> p[i]};
+	equazioni=equazioni /. {F[i_ /; i>0, j_] :> F[i]};
 	incognite=Cases[
 		equazioni,
-		p[_,_],
+		F[_,_],
 		(*il prossimo argomento serve a dire che il pattern*)
 		(*va cercato a qualunque livello della espressione*)
 		Infinity
 	];
-	globale=Rule[p[npt],-Sum[p[k],{k,1,npt-1}]];
+	globale=Rule[F[npt],-Sum[F[k],{k,1,npt-1}]];
 	equazioni=equazioni /. globale;
 	impulsiinterni=Solve[equazioni, incognite];
 	impulsiinterni
@@ -100,21 +100,21 @@ generaequazioni[grafo_]:=Module[{temp},
 
 ____________________________VERTICIPROPAGATORI_____________________________________
 
-verticipropagatori[grafo_, caratt_]:=Module[{temp,indici,nvert,vertici,propagatori},
+verticipropagatori[grafo_, F_]:=Module[{temp,indici,nvert,vertici,propagatori},
     indici=Flatten[grafo];
     nvert=Min[indici];
     vertici=Table[
         Which[
             Count[grafo, {___,i,___}]===3,
-            V3[i] @@ Cases[listacaratteristiche[grafo, caratt], caratt[___,i,___]],
+            V3[i] @@ Cases[listacaratteristiche[grafo, F], F[___,i,___]],
             Count[grafo, {___,i,___}]===4,
-            V4[i] @@ Cases[listacaratteristiche[grafo, caratt], caratt[___,i,___]]
+            V4[i] @@ Cases[listacaratteristiche[grafo, F], F[___,i,___]]
         ],
         {i,-1,nvert,-1}
     ];
-    vertici=vertici /. {caratt[i_ /; i > 0, j_] :> caratt[i]};
-	(*vertici=Flatten[vertici /. generaequazioni[grafo],1];*)
-    propagatori=Map[P,Cases[grafo,{i_ /; i<0, j_ /; j<0}]];
-    propagatori=propagatori /. P[{a_,b_}]->P[a,b];
+    vertici=vertici /. {F[i_ /; i > 0, j_] :> F[i]};
+	vertici=Flatten[vertici /. generaequazioni[grafo, F],1];
+    propagatori=Map[Prop,Cases[grafo,{i_ /; i<0, j_ /; j<0}]];
+    propagatori=propagatori /. Prop[{a_,b_}]->Prop[a,b];
     Return[Times @@ Join[vertici,propagatori]];
 ];
