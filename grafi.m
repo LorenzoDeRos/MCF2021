@@ -70,51 +70,101 @@ inserisci4[vertice_, ext_, grafo_]:=If[
 
 ____________________________GENERAEQUAZIONI_________________________________________
 
-listacaratteristiche[grafo_, F_]:=Map[(Apply[F,#])&, grafo];
+listaimpulsi[grafo_]:=Map[(Apply[p,#])&, grafo];
 
-generaequazioni[grafo_, F_]:=Module[{temp, caratteristiche},
+conservazioneimpulsi[grafo_]:=Module[{temp, impulsi, impulsivertice},
 	indici=Flatten[grafo];
 	npt=Max[indici];
 	nvert=Min[indici];
-	caratteristiche=listacaratteristiche[grafo, F];
+	impulsi=listaimpulsi[grafo];
 	equazioni=Table[
 		(*di default il pattern viene cercato da Cases al I livello*)
-		carattvertice=Join[Cases[caratteristiche,F[_,i]],-Cases[caratteristiche,F[i,_]]];
-		eq = Apply[Plus,carattvertice]==0;
+		impulsivertice=Join[Cases[impulsi,p[_,i]],-Cases[impulsi,p[i,_]]];
+		eq = Apply[Plus,impulsivertice]==0;
 		eq,
 		{i,-1,nvert,-1}
 	];
-	equazioni=equazioni /. {F[i_ /; i>0, j_] :> F[i]};
+	equazioni=equazioni /. {p[i_ /; i>0, j_] :> p[i]};
 	incognite=Cases[
 		equazioni,
-		F[_,_],
+		p[_,_],
 		(*il prossimo argomento serve a dire che il pattern*)
 		(*va cercato a qualunque livello della espressione*)
 		Infinity
 	];
-	globale=Rule[F[npt],-Sum[F[k],{k,1,npt-1}]];
+	globale=p[npt]->-Sum[p[k], {k,1,npt-1}];
 	equazioni=equazioni /. globale;
-	impulsiinterni=Solve[equazioni, incognite];
-	impulsiinterni
+	result=Solve[equazioni, incognite];
+	result
 ];
 
 ____________________________VERTICIPROPAGATORI_____________________________________
 
-verticipropagatori[grafo_, F_]:=Module[{temp,indici,nvert,vertici,propagatori},
+verticipropagatori[grafo_]:=Module[{temp,indici,nvert,vertici,propagatori},
     indici=Flatten[grafo];
     nvert=Min[indici];
     vertici=Table[
+		vertconnessi=Flatten[Cases[grafo, {___,i,___}],1];
+		vertconnessi=DeleteCases[vertconnessi, i];
         Which[
-            Count[grafo, {___,i,___}]===3,
-            V3[i] @@ Cases[listacaratteristiche[grafo, F], F[___,i,___]],
-            Count[grafo, {___,i,___}]===4,
-            V4[i] @@ Cases[listacaratteristiche[grafo, F], F[___,i,___]]
+            Length[vertconnessi]===3,
+            V3[i][vertconnessi],
+            Length[vertconnessi]===4,
+            V4[i][vertconnessi]
         ],
         {i,-1,nvert,-1}
     ];
-    vertici=vertici /. {F[i_ /; i > 0, j_] :> F[i]};
-	vertici=Flatten[vertici /. generaequazioni[grafo, F],1];
     propagatori=Map[Prop,Cases[grafo,{i_ /; i<0, j_ /; j<0}]];
     propagatori=propagatori /. Prop[{a_,b_}]->Prop[a,b];
     Return[Times @@ Join[vertici,propagatori]];
+];
+
+_________________________CARATTERISTICHEVERTICI______________________________________
+
+(*aggiungicaratteristiche[vp_]:=Module[{temp},
+	newvp = vp /. V3[j_][{a_,b_,c_}] -> V3[j][{p[j,a],p[j,b],p[j,c]},{mu[a],mu[b],mu[c]}];
+	newvp = newvp /. V4[j_][{a_,b_,c_,d_}] -> V4[j][{p[j,a],p[j,b],p[j,c],p[j,d]},{mu[a],mu[b],mu[c],mu[d]}];
+	newvp = newvp /. p[j_,a_] /; j>a -> -p[j,a];
+	newvp = newvp /. p[j_,a_] /; j<a -> p[a,j];
+	newvp = newvp /. Prop[j_,k_] -> Prop[j,k][p[j,k],{mu[j],mu[k]}];
+	newvp = newvp /. p[j_,k_] /; j>0 -> p[j];
+	newvp = newvp /. p[j_,k_] /; k>0 -> p[k];
+	Return[newvp];
+];*)
+
+aggiungicaratteristiche[vp_,caratt_List]:=Module[{temp},
+	newvp = vp /. V3[i_Integer][l_List] :> V3[
+							Table[
+								If[
+									caratt[[k]]===p,
+									Map[caratt[[k]][i,#] &, l],
+									Map[caratt[[k]],l]
+								],
+								{k,1,Length[caratt]}
+							]
+						];
+	newvp = newvp /. V4[i_Integer][l_List] :> V4[
+							Table[
+								If[
+									caratt[[k]]===p,
+									Map[caratt[[k]][i,#] &, l],
+									Map[caratt[[k]],l]
+								],
+								{k,1,Length[caratt]}
+							]
+						   ];
+	newvp = newvp /. p[j_,a_] /; j>a -> -p[j,a];
+	newvp = newvp /. p[j_,a_] /; j<a -> p[a,j];
+	newvp = newvp /. Prop[i_Integer,j_Integer] :> Prop[
+								Sequence @@ Table[
+										If[
+											caratt[[k]]===p,
+											p[i,j],
+											Map[caratt[[k]],{i,j}]
+										],
+										{k,1,Length[caratt]}
+								]
+							];
+	newvp = newvp /. {p[i_ /; i>0, j_] :> p[i]};
+	Return[newvp];
 ];
